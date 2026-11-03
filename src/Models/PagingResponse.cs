@@ -22,7 +22,7 @@ public sealed class PagingResponse<T> where T : class
 
     public PagingResponse(IReadOnlyList<T>? data, int totalRecords, int currentPageNumber, int pageSize, string? requestUrl = null)
     {
-        Data = data ?? Array.Empty<T>();
+        Data = data ?? [];
         TotalRecords = totalRecords;
         CurrentPageNumber = currentPageNumber;
         PageSize = pageSize;

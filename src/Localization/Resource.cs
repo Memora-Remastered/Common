@@ -1,5 +1,3 @@
 namespace Common.Localization;
 
-public class Resource
-{
-}
+public class Resource;

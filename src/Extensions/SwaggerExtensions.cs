@@ -6,13 +6,13 @@ public static class SwaggerExtensions
     {
         services.AddOpenApi(options =>
         {
-            options.AddDocumentTransformer((document, context, cancellationToken) =>
+            options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info ??= new();
                 document.Info.Title = Assembly.GetEntryAssembly()?.GetName().Name ?? "API";
                 return Task.CompletedTask;
-            });
-            options.AddOperationTransformer((operation, context, cancellationToken) =>
+            })
+                .AddOperationTransformer((operation, _, _) =>
             {
                 AddHeader(operation, "Language", "vi, vn, or en. Missing or any other value is vi-VN.");
                 AddHeader(operation, "CorrelationId", "Optional GUID. Generated when missing or invalid.");
@@ -28,10 +28,7 @@ public static class SwaggerExtensions
             return app;
 
         app.MapOpenApi();
-        app.UseSwaggerUI(options =>
-        {
-            options.SwaggerEndpoint("/openapi/v1.json", app.Environment.ApplicationName);
-        });
+        app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", app.Environment.ApplicationName));
         return app;
     }
 

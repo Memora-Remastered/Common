@@ -1,13 +1,8 @@
 namespace Common.Services;
 
-public abstract class BaseService<R>
+public abstract class BaseService<R>(IStringLocalizer<R> stringLocalizer)
 {
-    protected IStringLocalizer<R> StringLocalizer { get; }
-
-    protected BaseService(IStringLocalizer<R> stringLocalizer)
-    {
-        StringLocalizer = stringLocalizer;
-    }
+    protected IStringLocalizer<R> StringLocalizer { get; } = stringLocalizer;
 
     protected static Task<TResponse<T>> OkAsync<T>(T data)
     {
