@@ -20,6 +20,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddCommon(typeof(Program).Assembly);
 builder.Services.AddSupabase(builder.Configuration);
+builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddCors(builder.Configuration);
 builder.Services.AddPagination(builder.Configuration);
 builder.Services.AddSwagger();
@@ -30,6 +31,8 @@ app.UseSwagger();
 app.UseCors("AllowDomains");
 app.UseRequestLocalization();
 app.UseMiddleware<RequestContextMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.Run();
 ```
@@ -40,7 +43,7 @@ Call `AddControllers` once. `AddCommon` already configures MVC options, JSON, cu
 
 `AddCommon` registers MediatR handlers and FluentValidation validators from the API assembly. The validation pipeline runs before the handler and throws `ValidationException` when rules fail.
 
-There is no authentication scheme and no `[Authorize]` on `ApiBaseController`.
+`AddJwtAuthentication` validates Supabase access tokens. Endpoints require authentication by default. Mark public endpoints with `[AllowAnonymous]`. `/openapi/v1.json` is anonymous in Development. The API does not issue or refresh tokens.
 
 ## Configuration
 
@@ -50,7 +53,14 @@ The host owns these settings. This package ships no URL and no key.
 {
   "Supabase": {
     "Url": "https://YOUR_PROJECT.supabase.co",
+    "PublishableKey": "YOUR_ANON_OR_PUBLISHABLE_KEY",
     "SecretKey": "YOUR_SERVICE_ROLE_OR_SECRET_KEY"
+  },
+  "Jwt": {
+    "Issuer": "https://YOUR_PROJECT.supabase.co/auth/v1",
+    "Audience": "authenticated",
+    "JwksUrl": "https://YOUR_PROJECT.supabase.co/auth/v1/.well-known/jwks.json",
+    "ClockSkewSeconds": 30
   },
   "AllowDomains": "http://localhost:4200",
   "PaginationConfigs": {
@@ -64,9 +74,11 @@ The host owns these settings. This package ships no URL and no key.
 }
 ```
 
-`Supabase:SecretKey` is the service-role key or the newer secret key. Keep it on the server. The frontend never receives it. That key bypasses Supabase row-level security, so the API has to enforce its own rules when auth is added later.
+`Supabase:SecretKey` is the service-role key or the newer secret key. Keep it on the server. It bypasses row-level security. `IGenericRepository<>` uses that privileged client. User-owned data uses `IUserScopedSupabase`, which sends the caller's access JWT with `Supabase:PublishableKey`.
 
-`AddSupabase` throws at startup when `Supabase:Url` or `Supabase:SecretKey` is missing. It builds `Supabase.Client` with token refresh and realtime off, registers that client as a singleton, and registers `IGenericRepository<>`.
+`Jwt:SigningKey` is the legacy HS256 secret. Load it from user secrets or the environment (`Jwt__SigningKey`). Do not commit it. When it is empty, the API loads signing keys from `Jwt:JwksUrl`. Empty `Issuer` / `JwksUrl` default from `Supabase:Url`. The trusted user id is the `sub` claim and must be a UUID.
+
+`AddSupabase` throws at startup when `Supabase:Url`, `Supabase:SecretKey`, or `Supabase:PublishableKey` is missing. It builds the privileged `Supabase.Client` as a singleton, a per-request user-scoped client, and `IGenericRepository<>`.
 
 `AllowDomains` is a comma-separated origin list for the `AllowDomains` CORS policy. The policy allows those origins, any header, any method, and credentials. An empty list allows no origin.
 
@@ -120,12 +132,10 @@ Entities extend `BaseEntity` (`id` uuid, primary key). Each API model adds `[Tab
 
 `GetPagedAsync` and `FindPagedAsync` clamp the page to at least `DefaultPageIndex` and the page size to `1..MaxPageSize` (`DefaultPageSize` when the requested size is below 1). They return `PagingResponse<T>`: `totalRecords`, `currentPageNumber`, `pageSize`, `totalPages`, `hasNextPage`, `hasPreviousPage`, and `data`. The total comes from one PostgREST read with an exact count. `totalPages` is `0` when `pageSize` is `0`. `hasNextPage` is true when `currentPageNumber < totalPages`. `hasPreviousPage` is true when `currentPageNumber > 1`.
 
+Missing or invalid bearer tokens on protected endpoints are HTTP 401 from the JWT middleware, not the envelope. `UnauthorizedException` and `ForbiddenException` inside a handler are still HTTP 200 with `isSuccess: false`.
+
 ## Add later, as separate pieces
 
-- Bearer or API-key auth, then `[Authorize]` on `ApiBaseController`. Until that exists, unauthorized and forbidden stay HTTP 200 with `isSuccess: false`.
-- Another API project when a second Supabase project is needed. Do not register a second client in this package.
+- Application roles only when a trusted source and a real admin use case exist. The Supabase `role` claim (`authenticated`) is not an application role.
+- Another API project when a second Supabase project is needed. Do not register a second privileged client in this package.
 - Domain constants and validators in the API that needs them. Do not pre-create them here.
-
-## Known limit
-
-The service-role key skips row-level security. Until the API grows its own auth, any caller who can reach the API can do what the handlers allow.

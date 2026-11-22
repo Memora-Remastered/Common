@@ -9,7 +9,7 @@ public class ValidationException : Exception
         Errors = new Dictionary<string, string[]>();
     }
 
-    public ValidationException(IEnumerable<ValidationFailure> failures) : this()
+    public ValidationException(IEnumerable<FluentValidation.Results.ValidationFailure> failures) : this()
     {
         Errors = failures
             .GroupBy(e => e.PropertyName, e => e.ErrorMessage)

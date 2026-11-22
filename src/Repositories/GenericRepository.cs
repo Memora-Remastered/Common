@@ -2,6 +2,7 @@ namespace Common.Repositories;
 
 public class GenericRepository<T>(Client supabaseClient, PaginationConfigs pagination, IRequestContextAccessor request) : IGenericRepository<T> where T : BaseEntity, new()
 {
+    // Privileged (secret-key) client: bypasses RLS. User-owned tables must use IUserScopedSupabase.
     protected readonly Client _supabaseClient = supabaseClient;
     private readonly PaginationConfigs _pagination = pagination;
     private readonly IRequestContextAccessor _request = request;

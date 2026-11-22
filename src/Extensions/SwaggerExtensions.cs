@@ -10,6 +10,19 @@ public static class SwaggerExtensions
             {
                 document.Info ??= new();
                 document.Info.Title = Assembly.GetEntryAssembly()?.GetName().Name ?? "API";
+                document.Components ??= new OpenApiComponents();
+                document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+                document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT"
+                };
+                document.Security ??= [];
+                document.Security.Add(new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecuritySchemeReference("Bearer")] = []
+                });
                 return Task.CompletedTask;
             })
                 .AddOperationTransformer((operation, _, _) =>
@@ -27,7 +40,7 @@ public static class SwaggerExtensions
         if (!app.Environment.IsDevelopment())
             return app;
 
-        app.MapOpenApi();
+        app.MapOpenApi().AllowAnonymous();
         app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", app.Environment.ApplicationName));
         return app;
     }
